@@ -181,7 +181,7 @@
   <!-- ROOM -->
   <div id="screen-room" class="screen">
     <div class="room-header">
-      <button class="header-back" onclick="showScreen('home')">←</button>
+      <button class="header-back" onclick="exitRoom()">←</button>
       <div class="header-title">おそうじ当番</div>
       <div class="header-code" id="headerCode"></div>
     </div>
@@ -221,7 +221,25 @@
   <button class="btn-add-task" onclick="submitTask()">追加する</button>
 </div>
 
-<script>
+<!-- Firebase SDK のインポート -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// 新しいプロジェクト（osouji-ee5b0）のキーを設定したニャ！✨
+const firebaseConfig = {
+  apiKey: "AIzaSyBJCG9Kshec_u4LDHyp2XAG9YPLhx-Rdgs",
+  authDomain: "osouji-ee5b0.firebaseapp.com",
+  projectId: "osouji-ee5b0",
+  storageBucket: "osouji-ee5b0.firebasestorage.app",
+  messagingSenderId: "395370863482",
+  appId: "1:395370863482:web:4cbea18d2b9d1c6cc854c3"
+};
+
+// Firebaseの初期化
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 const PRAISE = [
   "さいこ〜にゃ！ピカピカにゃ〜！✨",
   "えらいにゃ！おうちが喜んでるにゃ！🏠",
@@ -249,6 +267,7 @@ const DEFAULT_TASKS = [
 let currentCode = null;
 let selWhoVal = 'both';
 let selFreqVal = '週1回';
+let unsubscribe = null;
 
 function todayKey() {
   const d = new Date();
@@ -260,57 +279,79 @@ function genCode() {
   return Array.from({length:6}, ()=>c[Math.floor(Math.random()*c.length)]).join('');
 }
 
-function lsKey(code) { return 'osouji_room_' + code; }
-
-function loadRoom(code) {
-  try { return JSON.parse(localStorage.getItem(lsKey(code))); } catch { return null; }
-}
-
-function saveRoom(code, data) {
-  localStorage.setItem(lsKey(code), JSON.stringify(data));
-}
-
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + id).classList.add('active');
 }
 
-function createRoom() {
+// 1. 新規ルーム作成
+window.createRoom = async function() {
   const code = genCode();
-  saveRoom(code, { tasks: DEFAULT_TASKS, done: {}, nextId: 20 });
+  const roomRef = doc(db, "rooms", code);
+  
+  const initialData = { tasks: DEFAULT_TASKS, done: {}, nextId: 20 };
+  await setDoc(roomRef, initialData);
+
   currentCode = code;
   document.getElementById('codeDisplay').textContent = code;
   document.getElementById('copyHint').textContent = 'タップしてコピー';
   showScreen('share');
 }
 
-function copyCode() {
+window.copyCode = function() {
   navigator.clipboard && navigator.clipboard.writeText(currentCode);
   document.getElementById('copyHint').textContent = 'コピーしたにゃ！✓';
 }
 
-function enterRoom() {
-  const room = loadRoom(currentCode);
-  if (room) { renderRoom(room); showScreen('room'); }
-}
-
-function joinRoom() {
-  const code = document.getElementById('joinCode').value.trim().toUpperCase();
-  const err = document.getElementById('homeErr');
-  if (code.length !== 6) { err.textContent = 'コードは6文字にゃ'; return; }
-  const room = loadRoom(code);
-  if (!room) { err.textContent = 'そのコードのルームが見つからないにゃ…'; return; }
-  err.textContent = '';
-  currentCode = code;
-  renderRoom(room);
+window.enterRoom = function() {
+  startRoomSync(currentCode);
   showScreen('room');
 }
 
-function renderRoom(room) {
+// 2. 既存のルームに参加
+window.joinRoom = async function() {
+  const code = document.getElementById('joinCode').value.trim().toUpperCase();
+  const err = document.getElementById('homeErr');
+  if (code.length !== 6) { err.textContent = 'コードは6文字にゃ'; return; }
+  
+  const roomRef = doc(db, "rooms", code);
+  const roomSnap = await getDoc(roomRef);
+
+  if (!roomSnap.exists()) {
+    err.textContent = 'そのコードのルームが見つからないにゃ…';
+    return;
+  }
+  
+  err.textContent = '';
+  currentCode = code;
+  startRoomSync(code);
+  showScreen('room');
+}
+
+// 3. リアルタイム同期開始
+function startRoomSync(code) {
+  if (unsubscribe) unsubscribe();
+
+  unsubscribe = onSnapshot(doc(db, "rooms", code), (docSnap) => {
+    if (docSnap.exists()) {
+      renderRoom(docSnap.data());
+    }
+  });
+}
+
+window.exitRoom = function() {
+  if (unsubscribe) {
+    unsubscribe();
+    unsubscribe = null;
+  }
+  showScreen('home');
+}
+
+function renderRoom(roomData) {
   document.getElementById('headerCode').textContent = currentCode;
   const today = todayKey();
-  const done = room.done[today] || {};
-  const tasks = room.tasks || [];
+  const done = roomData.done[today] || {};
+  const tasks = roomData.tasks || [];
   const doneCount = tasks.filter(t => done[t.id]).length;
   document.getElementById('statTodo').textContent = tasks.length - doneCount;
   document.getElementById('statDone').textContent = doneCount;
@@ -342,32 +383,68 @@ function renderRoom(room) {
   buildFreqGrid();
 }
 
-function toggleTask(id) {
-  const room = loadRoom(currentCode);
-  if (!room) return;
+// 4. タスクの完了切り替え
+window.toggleTask = async function(id) {
+  const roomRef = doc(db, "rooms", currentCode);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const roomData = roomSnap.data();
   const today = todayKey();
-  if (!room.done[today]) room.done[today] = {};
-  const wasDone = room.done[today][id];
-  room.done[today][id] = !wasDone;
-  saveRoom(currentCode, room);
+  if (!roomData.done[today]) roomData.done[today] = {};
+  
+  const wasDone = roomData.done[today][id];
+  roomData.done[today][id] = !wasDone;
+
+  await updateDoc(roomRef, { done: roomData.done });
   if (!wasDone) showPraise();
-  renderRoom(room);
 }
 
-function deleteTask(id) {
-  const room = loadRoom(currentCode);
-  if (!room) return;
-  room.tasks = room.tasks.filter(t => t.id !== id);
-  saveRoom(currentCode, room);
-  renderRoom(room);
+// 5. タスク削除
+window.deleteTask = async function(id) {
+  const roomRef = doc(db, "rooms", currentCode);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const roomData = roomSnap.data();
+  const updatedTasks = roomData.tasks.filter(t => t.id !== id);
+
+  await updateDoc(roomRef, { tasks: updatedTasks });
 }
 
-function resetToday() {
-  const room = loadRoom(currentCode);
-  if (!room) return;
-  room.done[todayKey()] = {};
-  saveRoom(currentCode, room);
-  renderRoom(room);
+// 6. 今日の完了リセット
+window.resetToday = async function() {
+  const roomRef = doc(db, "rooms", currentCode);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const roomData = roomSnap.data();
+  roomData.done[todayKey()] = {};
+
+  await updateDoc(roomRef, { done: roomData.done });
+}
+
+// 7. タスク追加
+window.submitTask = async function() {
+  const name = document.getElementById('taskNameInput').value.trim();
+  if (!name) return;
+
+  const roomRef = doc(db, "rooms", currentCode);
+  const roomSnap = await getDoc(roomRef);
+  if (!roomSnap.exists()) return;
+
+  const roomData = roomSnap.data();
+  const nextId = roomData.nextId || 20;
+
+  roomData.tasks.push({ id: nextId, name, who: selWhoVal, freq: selFreqVal });
+  
+  await updateDoc(roomRef, {
+    tasks: roomData.tasks,
+    nextId: nextId + 1
+  });
+
+  document.getElementById('taskNameInput').value = '';
+  closeSheet();
 }
 
 function showPraise() {
@@ -378,18 +455,18 @@ function showPraise() {
   window._pt = setTimeout(() => b.style.display='none', 3500);
 }
 
-function openSheet() {
+window.openSheet = function() {
   document.getElementById('overlay').classList.add('open');
   document.getElementById('sheet').classList.add('open');
   document.getElementById('taskNameInput').focus();
 }
 
-function closeSheet() {
+window.closeSheet = function() {
   document.getElementById('overlay').classList.remove('open');
   document.getElementById('sheet').classList.remove('open');
 }
 
-function selWho(w) {
+window.selWho = function(w) {
   selWhoVal = w;
   ['m','p','both'].forEach(x => {
     const b = document.getElementById('wo-'+x);
@@ -399,6 +476,7 @@ function selWho(w) {
 
 function buildFreqGrid() {
   const g = document.getElementById('freqGrid');
+  if (!g) return;
   g.innerHTML = '';
   FREQS.forEach(f => {
     const b = document.createElement('button');
@@ -411,18 +489,6 @@ function buildFreqGrid() {
     };
     g.appendChild(b);
   });
-}
-
-function submitTask() {
-  const name = document.getElementById('taskNameInput').value.trim();
-  if (!name) return;
-  const room = loadRoom(currentCode);
-  if (!room) return;
-  room.tasks.push({ id: room.nextId++, name, who: selWhoVal, freq: selFreqVal });
-  saveRoom(currentCode, room);
-  document.getElementById('taskNameInput').value = '';
-  closeSheet();
-  renderRoom(room);
 }
 
 buildFreqGrid();
