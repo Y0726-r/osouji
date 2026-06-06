@@ -148,7 +148,6 @@
 <body>
 <div id="app">
 
-  <!-- HOME -->
   <div id="screen-home" class="screen active">
     <div class="home-wrap">
       <div class="home-icon">🧹</div>
@@ -164,7 +163,6 @@
     </div>
   </div>
 
-  <!-- SHARE CODE -->
   <div id="screen-share" class="screen">
     <div class="share-wrap">
       <button class="back-btn" onclick="showScreen('home')">← 戻る</button>
@@ -178,7 +176,6 @@
     </div>
   </div>
 
-  <!-- ROOM -->
   <div id="screen-room" class="screen">
     <div class="room-header">
       <button class="header-back" onclick="exitRoom()">←</button>
@@ -203,7 +200,6 @@
 
 </div>
 
-<!-- ADD SHEET -->
 <div class="sheet-overlay" id="overlay" onclick="closeSheet()"></div>
 <div class="sheet" id="sheet">
   <div class="sheet-handle"></div>
@@ -221,7 +217,6 @@
   <button class="btn-add-task" onclick="submitTask()">追加する</button>
 </div>
 
-<!-- Firebase SDK のインポート -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -269,9 +264,10 @@ let selWhoVal = 'both';
 let selFreqVal = '週1回';
 let unsubscribe = null;
 
+// 🛠️ 月のバグ（getMonth）に +1 をしてきっちり修正したニャ！✨
 function todayKey() {
   const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
 function genCode() {
