@@ -84,8 +84,21 @@
 
   .room-body { flex: 1; overflow-y: auto; padding: 1rem; padding-bottom: calc(var(--safe-bottom) + 5rem); -webkit-overflow-scrolling: touch; }
 
-  .praise-banner { background: var(--teal-light); border: 1px solid var(--teal-border); border-radius: var(--radius-sm); padding: 12px 16px; font-size: 14px; font-weight: 700; color: var(--teal-dark); margin-bottom: 1rem; display: none; animation: slideIn 0.2s ease; }
-  @keyframes slideIn { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+  /* ── PRAISE OVERLAY ── */
+  .praise-overlay { position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  .praise-overlay.show { pointer-events: auto; }
+  .praise-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0); transition: background 0.3s; }
+  .praise-overlay.show .praise-backdrop { background: rgba(0,0,0,0.35); }
+  .praise-card { position: relative; background: white; border-radius: 24px; padding: 2.5rem 2rem; text-align: center; max-width: 300px; width: 90%; transform: scale(0.5) translateY(60px); opacity: 0; transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s ease; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .praise-overlay.show .praise-card { transform: scale(1) translateY(0); opacity: 1; }
+  .praise-emoji { font-size: 56px; margin-bottom: 12px; display: block; }
+  .praise-overlay.show .praise-emoji { animation: bounce 0.6s ease 0.2s both; }
+  .praise-msg { font-size: 20px; font-weight: 700; color: var(--teal-dark); line-height: 1.4; }
+  .praise-tap { font-size: 13px; color: var(--text-3); margin-top: 12px; }
+  @keyframes bounce { 0%{transform:scale(1)} 40%{transform:scale(1.3)} 70%{transform:scale(0.9)} 100%{transform:scale(1)} }
+  .confetti-wrap { position: absolute; inset: 0; overflow: hidden; pointer-events: none; border-radius: 24px; }
+  .c { position: absolute; width: 8px; height: 8px; border-radius: 2px; top: -10px; animation: fall linear forwards; }
+  @keyframes fall { to { transform: translateY(400px) rotate(720deg); opacity:0; } }
 
   .stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 1rem; }
   .stat { background: var(--surface); border-radius: var(--radius-sm); padding: 10px 8px; text-align: center; border: 1px solid var(--border); }
@@ -164,11 +177,11 @@
       <div class="home-icon">🧹</div>
       <div class="home-title">おそうじ当番</div>
       <div class="home-sub">二人でつかえるおそうじタスク</div>
-      <button class="btn-primary" onclick="createRoom()">＋ 新しいルームをつくる</button>
+      <button class="btn-primary" id="btnCreateRoom">＋ 新しいルームをつくる</button>
       <div class="divider">または</div>
       <div class="join-row">
         <input class="join-input" id="joinCode" type="text" placeholder="XXXXXX" maxlength="6">
-        <button class="btn-join" onclick="joinRoom()">参加</button>
+        <button class="btn-join" id="btnJoinRoom">参加</button>
       </div>
       <div class="err-msg" id="homeErr"></div>
     </div>
@@ -176,25 +189,25 @@
 
   <div id="screen-share" class="screen">
     <div class="share-wrap">
-      <button class="back-btn" onclick="showScreen('home')">← 戻る</button>
+      <button class="back-btn" id="btnBackHome">← 戻る</button>
       <div class="share-card">
         <h2>ルームができたにゃ！🎉</h2>
         <p>このコードをパートナーに教えてにゃ<br>タップするとコピーできるにゃ</p>
-        <div class="code-box" id="codeDisplay" onclick="copyCode()">------</div>
+        <div class="code-box" id="codeDisplay">------</div>
         <div class="copy-hint" id="copyHint">タップしてコピー</div>
-        <button class="btn-enter" onclick="enterRoom()">ルームに入る →</button>
+        <button class="btn-enter" id="btnEnterRoom">ルームに入る →</button>
       </div>
     </div>
   </div>
 
   <div id="screen-room" class="screen">
     <div class="room-header">
-      <button class="header-back" onclick="leaveRoom()">←</button>
+      <button class="header-back" id="btnLeaveRoom">←</button>
       <div class="header-title">おそうじ当番</div>
       <div class="header-code" id="headerCode"></div>
     </div>
     <div class="room-body">
-      <div class="praise-banner" id="praiseBanner"></div>
+      <div class="praise-banner" id="praiseBanner" style="display:none"></div>
       <div class="stats-row">
         <div class="stat"><div class="stat-num" id="statTodo">0</div><div class="stat-lbl">残り</div></div>
         <div class="stat"><div class="stat-num" id="statDone">0</div><div class="stat-lbl">完了</div></div>
@@ -203,12 +216,23 @@
       <div class="section-head">今日のタスク</div>
       <div id="taskList"></div>
       <div class="reset-area">
-        <button class="btn-reset" onclick="resetToday()">今日の完了をリセット</button>
+        <button class="btn-reset" id="btnResetToday">今日の完了をリセット</button>
       </div>
     </div>
-    <button class="fab visible" id="fab" onclick="openSheet()" aria-label="タスクを追加">＋</button>
+    <button class="fab visible" id="fab" aria-label="タスクを追加">＋</button>
   </div>
 
+</div>
+
+<!-- PRAISE OVERLAY -->
+<div class="praise-overlay" id="praiseOverlay" onclick="hidePraise()">
+  <div class="praise-backdrop"></div>
+  <div class="praise-card" id="praiseCard">
+    <div class="confetti-wrap" id="confettiWrap"></div>
+    <span class="praise-emoji" id="praiseEmoji">✨</span>
+    <div class="praise-msg" id="praiseMsg"></div>
+    <div class="praise-tap">タップで閉じる</div>
+  </div>
 </div>
 
 <!-- CONFIRM DIALOG -->
@@ -217,13 +241,13 @@
     <div class="dialog-title" id="dialogTitle"></div>
     <div class="dialog-msg" id="dialogMsg"></div>
     <div class="dialog-btns">
-      <button class="dialog-cancel" onclick="closeDialog()">キャンセル</button>
+      <button class="dialog-cancel" id="btnDialogCancel">キャンセル</button>
       <button class="dialog-ok" id="dialogOkBtn">退出する</button>
     </div>
   </div>
 </div>
 
-<div class="sheet-overlay" id="overlay" onclick="closeSheet()"></div>
+<div class="sheet-overlay" id="overlay"></div>
 <div class="sheet" id="sheet">
   <div class="sheet-handle"></div>
   <h3>タスクを追加</h3>
@@ -231,13 +255,13 @@
   <input class="text-input" id="taskNameInput" type="text" placeholder="例：お風呂掃除" maxlength="30">
   <div class="field-label">担当</div>
   <div class="who-grid">
-    <button class="who-opt" id="wo-m" onclick="selWho('m')">みつき</button>
-    <button class="who-opt" id="wo-p" onclick="selWho('p')">パートナー</button>
-    <button class="who-opt sel-both" id="wo-both" onclick="selWho('both')">ふたりで</button>
+    <button class="who-opt" id="wo-m">みつき</button>
+    <button class="who-opt" id="wo-p">パートナー</button>
+    <button class="who-opt sel-both" id="wo-both">ふたりで</button>
   </div>
   <div class="field-label">頻度</div>
   <div class="freq-grid" id="freqGrid"></div>
-  <button class="btn-add-task" onclick="submitTask()">追加する</button>
+  <button class="btn-add-task" id="btnAddTask">追加する</button>
 </div>
 
 <script type="module">
@@ -453,13 +477,43 @@ window.submitTask = async function() {
   closeSheet();
 }
 
+const PRAISE_EMOJIS = ['✨','🎉','🌟','🏆','💫','🥳','🎊','👑','🌈','🐱'];
+
 function showPraise() {
-  const b = document.getElementById('praiseBanner');
-  b.textContent = PRAISE[Math.floor(Math.random()*PRAISE.length)];
-  b.style.display = 'block';
+  const messages = PRAISE;
+  const msg = messages[Math.floor(Math.random() * messages.length)];
+  const emoji = PRAISE_EMOJIS[Math.floor(Math.random() * PRAISE_EMOJIS.length)];
+
+  document.getElementById('praiseMsg').textContent = msg;
+  document.getElementById('praiseEmoji').textContent = emoji;
+
+  // 紙吹雪
+  const wrap = document.getElementById('confettiWrap');
+  wrap.innerHTML = '';
+  const colors = ['#1D9E75','#5DCAA5','#D85A30','#F0997B','#FFD166','#118AB2','#FFB4A2','#B7E4C7'];
+  for (let i = 0; i < 28; i++) {
+    const c = document.createElement('div');
+    c.className = 'c';
+    c.style.left = Math.random() * 100 + '%';
+    c.style.background = colors[Math.floor(Math.random() * colors.length)];
+    c.style.width = (6 + Math.random() * 6) + 'px';
+    c.style.height = (6 + Math.random() * 6) + 'px';
+    c.style.animationDuration = (0.7 + Math.random() * 0.8) + 's';
+    c.style.animationDelay = (Math.random() * 0.4) + 's';
+    wrap.appendChild(c);
+  }
+
+  const overlay = document.getElementById('praiseOverlay');
+  overlay.classList.add('show');
   clearTimeout(window._pt);
-  window._pt = setTimeout(() => b.style.display='none', 3500);
+  window._pt = setTimeout(hidePraise, 2800);
 }
+
+function hidePraise() {
+  document.getElementById('praiseOverlay').classList.remove('show');
+  clearTimeout(window._pt);
+}
+window.hidePraise = hidePraise;
 
 window.openSheet = function() {
   document.getElementById('overlay').classList.add('open');
