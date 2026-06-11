@@ -475,8 +475,18 @@ function showToast(msg) {
   window._tt = setTimeout(() => t.classList.remove('show'), 2500);
 }
 
+const REMIND_MSGS = [
+  (t) => `🧹✨ おそうじ当番より\n「${t}」そろそろやってにゃ〜🐱`,
+  (t) => `🏠💫 おそうじ当番\n「${t}」まだだにゃ！よろしくにゃ🙏`,
+  (t) => `🌟 おそうじ当番からのお願い\n「${t}」やっといてにゃ〜！`,
+  (t) => `🧺🫧 おそうじ当番\nそろそろ「${t}」の時間にゃ〜✨`,
+  (t) => `💪🏠 おそうじ当番より\n「${t}」たのんだにゃ！いつもありがとにゃ🐱`,
+  (t) => `🌈✨ おそうじ当番\n「${t}」やったらほめてあげるにゃ〜🎉`,
+];
+
 window.remindTask = async function(taskName) {
-  const msg = `【おそうじ当番】\n「${taskName}」まだだにゃ〜！よろしくにゃ🧹`;
+  const template = REMIND_MSGS[Math.floor(Math.random() * REMIND_MSGS.length)];
+  const msg = template(taskName);
   try {
     await navigator.clipboard.writeText(msg);
     showToast('📋 コピーしたにゃ！LINEに貼り付けてにゃ');
