@@ -126,6 +126,12 @@
   .freq-badge { font-size: 11px; color: var(--text-3); }
   .del-btn { width: 32px; height: 32px; border-radius: var(--radius-sm); border: none; background: none; color: var(--text-3); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.1s; flex-shrink: 0; }
   .del-btn:active { background: var(--red-light); color: var(--red); }
+  .remind-btn { width: 32px; height: 32px; border-radius: var(--radius-sm); border: none; background: none; color: var(--text-3); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.1s; flex-shrink: 0; }
+  .remind-btn:active { background: #FFF3CD; color: #856404; }
+
+  /* ── TOAST ── */
+  .toast { position: fixed; bottom: calc(var(--safe-bottom) + 5rem); left: 50%; transform: translateX(-50%) translateY(20px); background: #222; color: white; font-size: 14px; font-weight: 500; padding: 12px 20px; border-radius: 99px; white-space: nowrap; opacity: 0; transition: opacity 0.2s, transform 0.2s; z-index: 500; pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   /* ── FAB ── */
   .fab { position: fixed; right: 1.25rem; bottom: calc(var(--safe-bottom) + 1.25rem); width: 56px; height: 56px; border-radius: 50%; background: var(--teal); color: white; font-size: 28px; border: none; cursor: pointer; display: none; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(29,158,117,0.4); z-index: 100; transition: transform 0.15s; }
@@ -223,6 +229,9 @@
   </div>
 
 </div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
 
 <!-- PRAISE OVERLAY -->
 <div class="praise-overlay" id="praiseOverlay" onclick="hidePraise()">
@@ -417,7 +426,7 @@ function renderRoom(roomData) {
     const whoLabel = t.who==='m' ? 'みつき' : t.who==='p' ? 'パートナー' : 'ふたりで';
     const whoCls = 'who-'+t.who;
     card.innerHTML = `
-      <div class="task-row" onclick="toggleTask(${t.id})">
+      <div class="task-row">
         <div class="task-circle"><div class="checkmark"></div></div>
         <div class="task-info">
           <div class="task-name">${t.name}</div>
@@ -426,8 +435,12 @@ function renderRoom(roomData) {
             <span class="freq-badge">${t.freq}</span>
           </div>
         </div>
-        <button class="del-btn" onclick="event.stopPropagation();deleteTask(${t.id})" aria-label="削除">×</button>
+        <button class="remind-btn" aria-label="催促する">📣</button>
+        <button class="del-btn" aria-label="削除">×</button>
       </div>`;
+    card.querySelector('.task-row').addEventListener('click', () => window.toggleTask(t.id));
+    card.querySelector('.remind-btn').addEventListener('click', e => { e.stopPropagation(); window.remindTask(t.name); });
+    card.querySelector('.del-btn').addEventListener('click', e => { e.stopPropagation(); window.deleteTask(t.id); });
     list.appendChild(card);
   });
   buildFreqGrid();
@@ -452,6 +465,24 @@ window.deleteTask = async function(id) {
   if (!roomSnap.exists()) return;
   const roomData = roomSnap.data();
   await updateDoc(roomRef, { tasks: roomData.tasks.filter(t => t.id !== id) });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(window._tt);
+  window._tt = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+window.remindTask = async function(taskName) {
+  const msg = `【おそうじ当番】\n「${taskName}」まだだにゃ〜！よろしくにゃ🧹`;
+  try {
+    await navigator.clipboard.writeText(msg);
+    showToast('📋 コピーしたにゃ！LINEに貼り付けてにゃ');
+  } catch {
+    showToast('コピーできなかったにゃ…');
+  }
 }
 
 window.resetToday = async function() {
