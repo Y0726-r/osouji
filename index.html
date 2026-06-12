@@ -193,6 +193,23 @@
     </div>
   </div>
 
+  <div id="screen-setup" class="screen">
+    <div class="share-wrap">
+      <button class="back-btn" id="btnSetupBack">← 戻る</button>
+      <div class="share-card">
+        <h2>ふたりの名前を決めてにゃ🐱</h2>
+        <p style="margin-bottom:1rem">タスクの担当表示に使うにゃ</p>
+        <div style="width:100%;text-align:left">
+          <div class="field-label">自分の名前</div>
+          <input class="text-input" id="nameM" type="text" placeholder="例：みつき" maxlength="10" style="margin-bottom:1rem">
+          <div class="field-label">相手の名前</div>
+          <input class="text-input" id="nameP" type="text" placeholder="例：パートナー" maxlength="10" style="margin-bottom:1.5rem">
+        </div>
+        <button class="btn-enter" id="btnSetupDone">ルームをつくる →</button>
+      </div>
+    </div>
+  </div>
+
   <div id="screen-share" class="screen">
     <div class="share-wrap">
       <button class="back-btn" id="btnBackHome">← 戻る</button>
@@ -348,11 +365,17 @@ window.closeDialog = function() {
   document.getElementById('confirmDialog').classList.remove('open');
 }
 
-// ── ルーム作成 ──
-window.createRoom = async function() {
+// ── ルーム作成（名前入力画面へ） ──
+window.createRoom = function() {
+  showScreen('setup');
+}
+
+window.setupRoom = async function() {
+  const nameM = document.getElementById('nameM').value.trim() || 'じぶん';
+  const nameP = document.getElementById('nameP').value.trim() || 'あいて';
   const code = genCode();
   const roomRef = doc(db, "rooms", code);
-  await setDoc(roomRef, { tasks: DEFAULT_TASKS, done: {}, nextId: 20 });
+  await setDoc(roomRef, { tasks: DEFAULT_TASKS, done: {}, nextId: 20, nameM, nameP });
   currentCode = code;
   document.getElementById('codeDisplay').textContent = code;
   document.getElementById('copyHint').textContent = 'タップしてコピー';
@@ -412,6 +435,8 @@ function renderRoom(roomData) {
   const today = todayKey();
   const done = roomData.done[today] || {};
   const tasks = roomData.tasks || [];
+  const nameM = roomData.nameM || 'じぶん';
+  const nameP = roomData.nameP || 'あいて';
   const doneCount = tasks.filter(t => done[t.id]).length;
   document.getElementById('statTodo').textContent = tasks.length - doneCount;
   document.getElementById('statDone').textContent = doneCount;
@@ -423,7 +448,7 @@ function renderRoom(roomData) {
     const isDone = !!done[t.id];
     const card = document.createElement('div');
     card.className = 'task-card' + (isDone ? ' done' : '');
-    const whoLabel = t.who==='m' ? 'みつき' : t.who==='p' ? 'パートナー' : 'ふたりで';
+    const whoLabel = t.who==='m' ? nameM : t.who==='p' ? nameP : 'ふたりで';
     const whoCls = 'who-'+t.who;
     card.innerHTML = `
       <div class="task-row">
@@ -594,6 +619,8 @@ function buildFreqGrid() {
 
 // ── イベントリスナー一覧 ──
 document.getElementById('btnCreateRoom').addEventListener('click', () => window.createRoom());
+document.getElementById('btnSetupBack').addEventListener('click', () => showScreen('home'));
+document.getElementById('btnSetupDone').addEventListener('click', () => window.setupRoom());
 document.getElementById('btnJoinRoom').addEventListener('click', () => window.joinRoom());
 document.getElementById('joinCode').addEventListener('keydown', e => { if (e.key === 'Enter') window.joinRoom(); });
 document.getElementById('btnBackHome').addEventListener('click', () => showScreen('home'));
