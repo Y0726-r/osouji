@@ -442,6 +442,9 @@ function renderRoom(roomData) {
   document.getElementById('statDone').textContent = doneCount;
   document.getElementById('statRate').textContent = tasks.length ? Math.round(doneCount/tasks.length*100)+'%' : '0%';
 
+  document.getElementById('wo-m').textContent = nameM;
+  document.getElementById('wo-p').textContent = nameP;
+
   const list = document.getElementById('taskList');
   list.innerHTML = '';
   tasks.forEach(t => {
